@@ -42,6 +42,7 @@ export interface SettingsPatch {
   readonly persona?: Persona
   readonly groups?: readonly string[]
   readonly rate?: { readonly maxPerHour?: number; readonly unlimited?: boolean }
+  readonly proactive?: { readonly enabled?: boolean; readonly idleMinutes?: number; readonly maxPerDay?: number }
 }
 
 export interface UiOptions {
@@ -156,6 +157,7 @@ async function handleSettings(
     persona?: Persona
     groups?: readonly string[]
     rate?: { maxPerHour?: number; unlimited?: boolean }
+    proactive?: { enabled?: boolean; idleMinutes?: number; maxPerDay?: number }
   } = {}
 
   if (body['persona'] !== undefined) {
@@ -176,7 +178,18 @@ async function handleSettings(
     patch.rate = rate
   }
 
-  if (patch.persona === undefined && patch.groups === undefined && patch.rate === undefined) {
+  if (body['proactive'] !== undefined) {
+    const proactive = readProactive(body['proactive'])
+    if (!proactive) return sendJson(res, 400, { error: 'invalid-proactive' })
+    patch.proactive = proactive
+  }
+
+  if (
+    patch.persona === undefined &&
+    patch.groups === undefined &&
+    patch.rate === undefined &&
+    patch.proactive === undefined
+  ) {
     return sendJson(res, 400, { error: 'nothing-to-save' })
   }
 
@@ -343,5 +356,23 @@ export function readRate(input: unknown): { maxPerHour: number; unlimited: boole
   const parsed = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : Number.NaN
   if (!Number.isFinite(parsed) || parsed < 1 || parsed > 240) return undefined
   return { maxPerHour: Math.floor(parsed), unlimited: record['unlimited'] === true }
+}
+
+/** 主动开口：冷场时长 30–1440 分钟，每日 0–20 次（0 = 只关掉次数限制但保留开关）。 */
+export function readProactive(
+  input: unknown,
+): { enabled: boolean; idleMinutes: number; maxPerDay: number } | undefined {
+  if (input === null || typeof input !== 'object') return undefined
+  const record = input as Record<string, unknown>
+
+  const idleRaw = record['idleMinutes']
+  const idle = typeof idleRaw === 'number' ? idleRaw : typeof idleRaw === 'string' ? Number(idleRaw) : Number.NaN
+  if (!Number.isFinite(idle) || idle < 30 || idle > 1440) return undefined
+
+  const dayRaw = record['maxPerDay']
+  const perDay = typeof dayRaw === 'number' ? dayRaw : typeof dayRaw === 'string' ? Number(dayRaw) : Number.NaN
+  if (!Number.isFinite(perDay) || perDay < 0 || perDay > 20) return undefined
+
+  return { enabled: record['enabled'] === true, idleMinutes: Math.floor(idle), maxPerDay: Math.floor(perDay) }
 }
 

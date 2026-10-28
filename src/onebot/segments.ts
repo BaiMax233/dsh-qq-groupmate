@@ -159,3 +159,15 @@ export function toGroupMessage(event: unknown, options: NormalizeOptions): Group
     self: selfId !== '' && userId === selfId,
   }
 }
+
+/**
+ * get_group_msg_history 返回的条目没有 post_type / message_type，
+ * 补上这两个字段再走同一套归一化，避免维护第二份解析逻辑。
+ */
+export function toGroupMessageFromHistory(
+  entry: unknown,
+  options: NormalizeOptions,
+): GroupMessage | undefined {
+  if (!isRecord(entry)) return undefined
+  return toGroupMessage({ ...entry, post_type: 'message', message_type: 'group' }, options)
+}

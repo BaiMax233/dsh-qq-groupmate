@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { readGroups, readPersona, readRate } from '../src/host/ui.js'
+import { readGroups, readPersona, readProactive, readRate } from '../src/host/ui.js'
 
 test('群号：接受字符串和数字，去重', () => {
   assert.deepEqual(readGroups(['807813276', 123456]), ['807813276', '123456'])
@@ -28,6 +28,24 @@ test('配额：范围内接受，越界拒绝', () => {
   assert.equal(readRate({ maxPerHour: 241 }), undefined)
   assert.equal(readRate({ maxPerHour: 'abc' }), undefined)
   assert.equal(readRate(null), undefined)
+})
+
+test('主动开口：冷场时长与每日次数都在区间内', () => {
+  assert.deepEqual(readProactive({ enabled: true, idleMinutes: 240, maxPerDay: 1 }), {
+    enabled: true,
+    idleMinutes: 240,
+    maxPerDay: 1,
+  })
+  assert.deepEqual(readProactive({ enabled: false, idleMinutes: '60', maxPerDay: '3' }), {
+    enabled: false,
+    idleMinutes: 60,
+    maxPerDay: 3,
+  })
+  // 冷场时长下限 30 分钟、上限 1440；每日次数上限 20。
+  assert.equal(readProactive({ enabled: true, idleMinutes: 10, maxPerDay: 1 }), undefined)
+  assert.equal(readProactive({ enabled: true, idleMinutes: 2000, maxPerDay: 1 }), undefined)
+  assert.equal(readProactive({ enabled: true, idleMinutes: 240, maxPerDay: 30 }), undefined)
+  assert.equal(readProactive(null), undefined)
 })
 
 test('人设：名字必填且限长', () => {

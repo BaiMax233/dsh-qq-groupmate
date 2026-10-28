@@ -105,6 +105,22 @@ export class WebSocketTransport implements EventTransport {
     return rawId === undefined || rawId === null ? {} : { messageId: String(rawId) }
   }
 
+  /**
+   * 拉一段群历史。只用于回灌群友档案，拿不到就返回空数组——
+   * 档案是锦上添花，不该因为一次失败影响连接。
+   */
+  async fetchHistory(groupId: string, count: number): Promise<unknown[]> {
+    const response = await this.call(
+      'get_group_msg_history',
+      { group_id: numericId(groupId), count },
+      this.options.actionTimeoutMs,
+    )
+    if (response.retcode !== 0) return []
+    const data = isRecord(response.data) ? response.data : undefined
+    const messages = data?.['messages']
+    return Array.isArray(messages) ? messages : []
+  }
+
   /** 连接一次，返回它是否成功建立过；无论如何都在 socket 关闭时 resolve。 */
   private connectOnce(signal: AbortSignal): Promise<boolean> {
     return new Promise<boolean>(resolve => {

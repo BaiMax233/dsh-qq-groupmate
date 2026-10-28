@@ -72,6 +72,9 @@ window.__ModuleLoader__.load({
         groups: Array.isArray(state && state.groups) ? state.groups.slice() : [],
         maxPerHour: typeof b.maxPerHour === 'number' ? b.maxPerHour : 8,
         unlimited: b.unlimited === true,
+        proactiveEnabled: b.proactiveEnabled === true,
+        proactiveIdleMinutes: typeof b.proactiveIdleMinutes === 'number' ? b.proactiveIdleMinutes : 240,
+        proactiveMaxPerDay: typeof b.proactiveMaxPerDay === 'number' ? b.proactiveMaxPerDay : 1,
       }
     }
 
@@ -187,6 +190,11 @@ window.__ModuleLoader__.load({
               persona: draft.persona,
               groups: draft.groups,
               rate: { maxPerHour: draft.maxPerHour, unlimited: draft.unlimited },
+              proactive: {
+                enabled: draft.proactiveEnabled,
+                idleMinutes: draft.proactiveIdleMinutes,
+                maxPerDay: draft.proactiveMaxPerDay,
+              },
             }),
           })
           const data = await res.json().catch(() => ({}))
@@ -425,6 +433,64 @@ window.__ModuleLoader__.load({
             draft.unlimited
               ? '不限条数，但仍然保留最小间隔，避免刷屏。被 @ 时永远不受限制。'
               : '超过上限后它只会回应 @，不再主动插话。被 @ 时永远不受限制。'),
+        ),
+
+        // 主动开口
+        h('div', { style: card },
+          h('div', { style: { fontSize: 15, fontWeight: 600, marginBottom: 12 } }, '主动开口'),
+          h('label', { style: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 12 } },
+            h('input', {
+              type: 'checkbox',
+              checked: draft.proactiveEnabled,
+              onChange: e => {
+                setDraft(d => ({ ...d, proactiveEnabled: e.target.checked }))
+                touch()
+              },
+            }),
+            '群里冷场时主动挑起话题',
+          ),
+          h('div', {
+            style: {
+              display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+              opacity: draft.proactiveEnabled ? 1 : 0.5,
+            },
+          },
+            h('span', { style: { fontSize: 13, color: C.muted } }, '安静'),
+            h('input', {
+              type: 'number', min: 30, max: 1440, step: 30,
+              style: { ...input, width: 100, padding: '6px 10px' },
+              value: draft.proactiveIdleMinutes,
+              disabled: !draft.proactiveEnabled,
+              onChange: e => {
+                const next = Number(e.target.value)
+                setDraft(d => ({
+                  ...d,
+                  proactiveIdleMinutes: Number.isFinite(next) ? next : d.proactiveIdleMinutes,
+                }))
+                touch()
+              },
+            }),
+            h('span', { style: { fontSize: 13, color: C.muted } }, '分钟后考虑，每天最多'),
+            h('input', {
+              type: 'number', min: 0, max: 20,
+              style: { ...input, width: 80, padding: '6px 10px' },
+              value: draft.proactiveMaxPerDay,
+              disabled: !draft.proactiveEnabled,
+              onChange: e => {
+                const next = Number(e.target.value)
+                setDraft(d => ({
+                  ...d,
+                  proactiveMaxPerDay: Number.isFinite(next) ? next : d.proactiveMaxPerDay,
+                }))
+                touch()
+              },
+            }),
+            h('span', { style: { fontSize: 13, color: C.muted } }, '次'),
+          ),
+          h('div', { style: hint },
+            draft.proactiveEnabled
+              ? '它会接着最近的话题问一句，或者搜点新鲜事抛出来；觉得没必要也可以不开口。主动发言比被动回复更容易触发账号风控，建议先小频率跑几天。'
+              : '关闭时它只回应别人，不会主动挑起话题。'),
         ),
 
         // 行为参数（只读）

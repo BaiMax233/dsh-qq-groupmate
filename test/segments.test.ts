@@ -7,6 +7,7 @@ import {
   renderSegmentText,
   replyIdOf,
   toGroupMessage,
+  toGroupMessageFromHistory,
   toSegments,
 } from '../src/onebot/segments.js'
 
@@ -106,4 +107,26 @@ test('归一化：回复自己时 replyToSelf 为真', () => {
   assert.ok(message)
   assert.equal(message.replyToSelf, true)
   assert.equal(message.atSelf, false)
+})
+
+test('群历史条目没有 post_type，也能归一化', () => {
+  // get_group_msg_history 返回的正是这种形状：没有 post_type / message_type。
+  const entry = {
+    message_id: 778,
+    group_id: 807813276,
+    user_id: 136846459,
+    time: 1700000100,
+    message: [{ type: 'text', data: { text: '回去还得 vibe 一下' } }],
+    sender: { nickname: '以后', role: 'member' },
+  }
+
+  const message = toGroupMessageFromHistory(entry, { selfId: '10000', isOurs: () => false })
+  assert.ok(message)
+  assert.equal(message.groupId, '807813276')
+  assert.equal(message.userId, '136846459')
+  assert.equal(message.nickname, '以后')
+  assert.equal(message.at, 1700000100000)
+  assert.equal(message.self, false)
+
+  assert.equal(toGroupMessageFromHistory('nope', { selfId: '1', isOurs: () => false }), undefined)
 })

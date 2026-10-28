@@ -38,6 +38,8 @@ export interface RunnerDeps {
   readonly normalize: (event: unknown) => GroupMessage | undefined
   /** 每条被接受的消息都会喂给档案，用来记「谁在这个群、说过多少」。 */
   readonly observe?: (message: GroupMessage) => void
+  /** 连接刚建立时触发一次（重连也会触发），用来做启动时的初始化。 */
+  readonly onConnected?: () => void
   readonly config: RunnerConfig
   readonly speakerKind: 'llm' | 'agent'
   readonly recorder?: Recorder
@@ -273,9 +275,15 @@ export class GroupmateRunner {
   }
 
   private onState(state: { connected: boolean; detail?: string }): void {
+    const wasConnected = this.linkConnected
     this.linkConnected = state.connected
-    if (state.connected) this.deps.log.info('[qq] OneBot 连接已建立')
-    else this.deps.log.warn(`[qq] OneBot 连接断开${state.detail ? `：${state.detail}` : ''}`)
+    if (state.connected) {
+      this.deps.log.info('[qq] OneBot 连接已建立')
+      // 只在「断开 → 连上」这个边沿触发，别每次心跳都跑一遍。
+      if (!wasConnected) this.deps.onConnected?.()
+    } else {
+      this.deps.log.warn(`[qq] OneBot 连接断开${state.detail ? `：${state.detail}` : ''}`)
+    }
   }
 
   private onEvent(event: unknown): void {

@@ -30,8 +30,12 @@ import { createFileLogger } from './host/file-logger.js'
 import { MemberStore } from './host/member-store.js'
 import { registerUiRoutes } from './host/ui.js'
 import type { SettingsPatch } from './host/ui.js'
-import { toGroupMessage } from './onebot/segments.js'
+import { toGroupMessage, toGroupMessageFromHistory } from './onebot/segments.js'
 import { WebSocketTransport } from './onebot/transport.js'
+
+const BACKFILL_MESSAGES = 100
+/** 档案里累计不到这么多条，就认为还不够像样，值得回灌一次。 */
+const BACKFILL_MIN_MESSAGES = 30
 
 export const name = 'qq-groupmate'
 /** 没有 llm 服务时插件不激活，而不是抛错。 */
@@ -89,12 +93,52 @@ export function apply(ctx: Context, config: GroupmateConfig): void {
     const groupId = message.groupId
     if (!memberLoaded.has(groupId)) {
       memberLoaded.add(groupId)
-      void memberStore.load(groupId).then(raw => {
-        if (raw !== undefined) members.load(groupId, raw)
-      })
+      void bootstrapMembers(groupId)
     }
     members.observe(message)
     memberDirty.add(groupId)
+  }
+
+  /**
+   * 第一次见到某个群时把档案补起来：
+   * 有存档就合并；没有就用群历史回灌，省得从零攒。
+   */
+  const bootstrapMembers = async (groupId: string): Promise<void> => {
+    const normalize = (entry: unknown): GroupMessage | undefined =>
+      toGroupMessageFromHistory(entry, {
+        selfId: config.connection.selfId,
+        isOurs: messageId => sent.has(messageId),
+      })
+
+    try {
+      const saved = await memberStore.load(groupId)
+      if (saved !== undefined) {
+        members.load(groupId, saved)
+        // 不是「有没有存档」，而是「档案够不够充实」——
+        // 刚装插件时只见过一两条消息，那种档案回灌一次才像样。
+        const total = members
+          .profiles(groupId)
+          .reduce((sum, profile) => sum + profile.messages, 0)
+        if (total >= BACKFILL_MIN_MESSAGES) return
+      }
+
+      const history = await transport.fetchHistory(groupId, BACKFILL_MESSAGES)
+      if (history.length === 0) return
+
+      let used = 0
+      for (const entry of history) {
+        const message = normalize(entry)
+        if (message === undefined) continue
+        members.observe(message)
+        used += 1
+      }
+      if (used === 0) return
+
+      memberDirty.add(groupId)
+      log.info(`[qq] 群 ${groupId} 的群友档案已用 ${used} 条历史回灌`)
+    } catch (error) {
+      log.warn(`[qq] 群 ${groupId} 档案回灌失败：${errorMessage(error)}`)
+    }
   }
 
   const flushMembers = async (): Promise<void> => {
@@ -191,6 +235,14 @@ export function apply(ctx: Context, config: GroupmateConfig): void {
           isOurs: messageId => sent.has(messageId),
         }),
       observe: observeMessage,
+      onConnected: () => {
+        // 连上就把每个群的档案准备好，不用等第一条消息。
+        for (const groupId of allow) {
+          if (memberLoaded.has(groupId)) continue
+          memberLoaded.add(groupId)
+          void bootstrapMembers(groupId)
+        }
+      },
     })
 
     // 唯一副作用入口：连接、定时器、在途评估都由这个 effect 持有。
@@ -240,9 +292,13 @@ export function apply(ctx: Context, config: GroupmateConfig): void {
               minMessages: config.gate.minMessages,
               minGapMs: config.rate.minGapMs,
               maxPerHour: config.rate.maxPerHour,
-            unlimited: config.rate.unlimited,
+              unlimited: config.rate.unlimited,
               quietHours: config.groups.quietHours,
               cwd: config.agent.cwd,
+              proactiveEnabled: config.proactive.enabled,
+              proactiveIdleMinutes: config.proactive.idleMinutes,
+              proactiveMaxPerDay: config.proactive.maxPerDay,
+              proactiveSearch: config.proactive.search,
             },
             decisions: recorder.recent(40),
             reasons: recorder.reasonHistogram(),
@@ -395,6 +451,20 @@ async function saveSettings(ctx: Context, patch: SettingsPatch): Promise<void> {
         ...rate,
         maxPerHour: patch.rate.maxPerHour ?? (typeof rate['maxPerHour'] === 'number' ? rate['maxPerHour'] : 8),
         unlimited: patch.rate.unlimited ?? rate['unlimited'] === true,
+      }
+    }
+
+    if (patch.proactive !== undefined) {
+      const proactive = asRecord(next['proactive'])
+      next['proactive'] = {
+        ...proactive,
+        enabled: patch.proactive.enabled ?? proactive['enabled'] === true,
+        idleMinutes:
+          patch.proactive.idleMinutes ??
+          (typeof proactive['idleMinutes'] === 'number' ? proactive['idleMinutes'] : 240),
+        maxPerDay:
+          patch.proactive.maxPerDay ??
+          (typeof proactive['maxPerDay'] === 'number' ? proactive['maxPerDay'] : 1),
       }
     }
 
