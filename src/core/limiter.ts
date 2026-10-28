@@ -1,4 +1,5 @@
 import { sleep } from './timing.js'
+import type { CircuitBreaker } from './breaker.js'
 import type { OutgoingMessage } from './types.js'
 
 export interface RateOptions {
@@ -21,6 +22,8 @@ export interface SendLimiterOptions {
   readonly log?: { info(message: string): void }
   /** 同一批里两条消息之间的间隔，默认按字数估算。测试可注入 0。 */
   readonly gap?: (previousText: string) => number
+  /** 发送熔断器：连续失败或风控信号会让它整体闭嘴一段时间。 */
+  readonly breaker?: CircuitBreaker
 }
 
 /**
@@ -46,6 +49,12 @@ export class SendLimiter {
    *               但保留一个更短的冷却，避免连珠炮式回应。
    */
   canSpeak(groupId: string, urgent = false): Allowance {
+    // 熔断优先于一切：连点名都不该硬发。
+    const breaker = this.options.breaker?.allow()
+    if (breaker !== undefined && !breaker.ok) {
+      return { ok: false, reason: breaker.reason ?? '熔断中' }
+    }
+
     const state = this.stateFor(groupId)
     const now = this.now()
     const windowStart = now - 60 * 60 * 1000
@@ -104,7 +113,13 @@ export class SendLimiter {
         if (message === undefined) continue
         if (index > 0) await sleep(this.options.gap?.(previous) ?? typingGap(previous), signal)
 
-        await this.sender.sendGroup(groupId, message)
+        try {
+          await this.sender.sendGroup(groupId, message)
+          this.options.breaker?.recordSuccess()
+        } catch (error) {
+          this.options.breaker?.recordFailure(error instanceof Error ? error.message : String(error))
+          throw error
+        }
         previous = message.text
 
         const at = this.now()

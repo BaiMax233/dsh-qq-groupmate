@@ -1,6 +1,6 @@
 {
   "name": "@local/qq-groupmate",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "连接 NapCat（OneBot v11），以预设人设和长期记忆在指定 QQ 群自主聊天的插件",
@@ -42,7 +42,7 @@
   "scripts": {
     "build": "tsc -p .",
     "typecheck": "tsc -p . --noEmit",
-    "test": "tsc -p . && node dist/test/buffer.test.js && node dist/test/segments.test.js && node dist/test/gate.test.js && node dist/test/config.test.js && node dist/test/agent-speaker.test.js && node dist/test/limiter.test.js && node dist/test/ui-validate.test.js && node dist/test/file-logger.test.js && node dist/test/persona.test.js && node dist/test/text-truncate.test.js && node dist/test/members.test.js && node dist/test/proactive.test.js && node dist/test/runner.test.js"
+    "test": "tsc -p . && node dist/test/buffer.test.js && node dist/test/segments.test.js && node dist/test/gate.test.js && node dist/test/config.test.js && node dist/test/agent-speaker.test.js && node dist/test/limiter.test.js && node dist/test/ui-validate.test.js && node dist/test/file-logger.test.js && node dist/test/persona.test.js && node dist/test/text-truncate.test.js && node dist/test/members.test.js && node dist/test/proactive.test.js && node dist/test/breaker.test.js && node dist/test/runner.test.js"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",

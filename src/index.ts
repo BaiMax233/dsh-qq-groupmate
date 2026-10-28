@@ -15,6 +15,7 @@ import type { GroupmateConfig } from './config.js'
 import { GroupBuffers } from './core/buffer.js'
 import { WillingnessGate } from './core/gate.js'
 import { SendLimiter } from './core/limiter.js'
+import { CircuitBreaker } from './core/breaker.js'
 import { MemberDirectory } from './core/members.js'
 import type { Persona } from './core/persona.js'
 import { RecentIds } from './core/recent-ids.js'
@@ -163,6 +164,9 @@ export function apply(ctx: Context, config: GroupmateConfig): void {
     return () => undefined
   })
 
+  // 熔断器：连续发送失败、或窗口内连续收到风控信号，就整体闭嘴一段时间。
+  const breaker = new CircuitBreaker({ log, cooldownMs: 30 * 60_000 })
+
   const transport = new WebSocketTransport(
     {
       wsUrl: config.connection.wsUrl,
@@ -171,6 +175,7 @@ export function apply(ctx: Context, config: GroupmateConfig): void {
       reconnectMaxMs: config.connection.reconnectMaxMs,
       actionTimeoutMs: config.connection.actionTimeoutMs,
       heartbeatTimeoutMs: config.connection.heartbeatTimeoutMs,
+      onRiskSignal: signal => breaker.recordRisk(signal),
     },
     log,
   )
@@ -195,7 +200,7 @@ export function apply(ctx: Context, config: GroupmateConfig): void {
         return result
       },
     },
-    { rate: config.rate, log },
+    { rate: config.rate, log, breaker },
   )
 
   const kind: 'llm' | 'agent' = config.speaker.kind === 'llm' ? 'llm' : 'agent'
@@ -299,6 +304,7 @@ export function apply(ctx: Context, config: GroupmateConfig): void {
               proactiveIdleMinutes: config.proactive.idleMinutes,
               proactiveMaxPerDay: config.proactive.maxPerDay,
               proactiveSearch: config.proactive.search,
+              breakerOpen: breaker.snapshot().open,
             },
             decisions: recorder.recent(40),
             reasons: recorder.reasonHistogram(),

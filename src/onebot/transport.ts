@@ -20,6 +20,8 @@ export interface WebSocketTransportOptions {
   readonly actionTimeoutMs: number
   /** 多久没收到任何事件就认为连接假死。 */
   readonly heartbeatTimeoutMs: number
+  /** 收到风控信号（例如发送确认超时）时回调，交给熔断器统计。 */
+  readonly onRiskSignal?: (signal: string) => void
 }
 
 interface PendingCall {
@@ -94,6 +96,7 @@ export class WebSocketTransport implements EventTransport {
       // 把它当失败会导致「明明发出去了却记成没发」，所以只告警、不抛错。
       if (response.retcode === 1200 || detail.includes('EventChecker')) {
         this.log.warn(`[qq] 发送确认超时（retcode=${response.retcode}），按已送达处理`)
+        this.options.onRiskSignal?.('event-checker-timeout')
         return {}
       }
 
