@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="QQ groupmate">
+  <defs>
+    <linearGradient id="bubble" x1="10" y1="8" x2="54" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4f8cff"/>
+      <stop offset="1" stop-color="#7b5cff"/>
+    </linearGradient>
+  </defs>
+  <path
+    fill="url(#bubble)"
+    d="M16 10h32a10 10 0 0 1 10 10v18a10 10 0 0 1-10 10H33l-13 10v-10h-4A10 10 0 0 1 6 38V20A10 10 0 0 1 16 10z"
+  />
+  <circle cx="22" cy="29" r="3.2" fill="#ffffff" opacity="0.94"/>
+  <circle cx="32" cy="29" r="3.2" fill="#ffffff" opacity="0.94"/>
+  <circle cx="42" cy="29" r="3.2" fill="#ffffff" opacity="0.94"/>
+</svg>

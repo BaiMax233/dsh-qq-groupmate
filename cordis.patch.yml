@@ -1,0 +1,38 @@
+# 安装后立即生效的配置样例。
+#
+# 注意两件事：
+# 1. enabled 默认是 false —— 装上不会立刻连 NapCat，确认配置后再改成 true。
+# 2. groups.allow 必须写进去，留空表示「不参与任何群」，这是防误连的硬保险。
+- insert:
+    - id: qq-groupmate
+      name: '@local/qq-groupmate'
+      config:
+        enabled: false
+        connection:
+          wsUrl: 'ws://127.0.0.1:3001'
+          tokenEnv: 'NAPCAT_TOKEN'
+          selfId: ''
+        groups:
+          allow:
+            - '123456789'
+          quietHours: '23:30-07:30'
+        persona:
+          name: '小满'
+          bio: '群里的老潜水员，偶尔冒一句，不刷屏。'
+          interests:
+            - '游戏'
+            - '动漫'
+            - '夜宵'
+          speech: '短句、口语，偶尔只回一个表情。'
+        gate:
+          provider: 'deepseek'
+          model: 'deepseek-chat'
+          threshold: 0.55
+        speaker:
+          provider: 'deepseek'
+          model: 'deepseek-chat'
+          maxMessages: 2
+          maxChars: 40
+        rate:
+          minGapMs: 15000
+          maxPerHour: 6
